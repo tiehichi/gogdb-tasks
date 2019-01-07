@@ -1,0 +1,7 @@
+requests
+grequests
+pony
+python-dateutil
+psycopg2-binary
+fake-useragent
+celery[librabbitmq,redis,msgpack]

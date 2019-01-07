@@ -1,0 +1,3 @@
+[submodule "gogdbcore"]
+	path = gogdbcore
+	url = https://github.com/tiehichi/gogdbcore.git
