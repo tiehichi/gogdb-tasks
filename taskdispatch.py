@@ -4,16 +4,16 @@
 import gevent, nodetasks
 from gogdbcore.dbmodel import *
 from gogdbcore.dataparse import *
-from datatime import datetime, timedelta
+from datetime import datetime, timedelta
 
 def wait_asyncresult(result):
     while not result.ready():
         gevent.sleep(0.5)
 
-
+@db_session
 def refresh_gamelist():
     while 1:
-        asyncgamelist = nodetasks.get_all_game_list.delay()
+        asyncgamelist = nodetasks.get_all_game_id.delay()
         wait_asyncresult(asyncgamelist)
         if asyncgamelist.successful():
             gamelist_parse(asyncgamelist.result)
@@ -22,11 +22,11 @@ def refresh_gamelist():
         else:
             asyncgamelist.forget()
 
-
+@db_session
 def refresh_gamedetail():
     while 1:
-        if select(gid for gid in GameList if hasWriteInDB == False).exists():
-            ids = select(gid.id for gid in GameList if hasWriteInDB == False)[:100]
+        if select(gid for gid in GameList if gid.hasWriteInDB == False).exists():
+            ids = select(gid.id for gid in GameList if gid.hasWriteInDB == False)[:100]
             need_lite = True
 
         elif select(game for game in GameDetail
@@ -46,3 +46,12 @@ def refresh_gamedetail():
             agd.forget()
 
         gevent.sleep(2)
+
+if __name__ == '__main__':
+    dblite.bind('sqlite', 'dblite.db', create_db=True)
+    dblite.generate_mapping(create_tables=True)
+    db.bind('postgres', host='127.0.0.1', user='gogdb', password='gogdb', database='gogdb')
+    db.generate_mapping(create_tables=True)
+    gevent.joinall([
+        gevent.spawn(refresh_gamedetail),
+        gevent.spawn(refresh_gamelist)])
