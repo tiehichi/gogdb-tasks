@@ -102,4 +102,4 @@ if __name__ == '__main__':
         gevent.spawn(refresh_gamedetail),
         gevent.spawn(refresh_gamelist),
         gevent.spawn(refresh_gameprice),
-        gevent.spawn(refresh_gamediscount])
+        gevent.spawn(refresh_gamediscount)])
