@@ -6,9 +6,11 @@ from gogdbcore.dbmodel import *
 from gogdbcore.dataparse import *
 from datetime import datetime, timedelta
 
+
 def wait_asyncresult(result):
     while not result.ready():
         gevent.sleep(0.5)
+
 
 @db_session
 def refresh_gamelist():
@@ -21,6 +23,7 @@ def refresh_gamelist():
             gevent.sleep(60 * 60 * 6)
         else:
             asyncgamelist.forget()
+
 
 @db_session
 def refresh_gamedetail():
@@ -47,6 +50,49 @@ def refresh_gamedetail():
 
         gevent.sleep(2)
 
+
+@db_session
+def refresh_gameprice():
+    while 1:
+        timenow = datetime.utcnow().replace(tzinfo=None)
+        if select(game for game in GameDetail
+                if game.lastPriceUpdate == None
+                or game.lastPriceUpdate + timedelta(hours=12) < timenow).exists():
+            ids = select(game.id for game in GameDetail
+                    if game.lastPriceUpdate == None
+                    or game.lastPriceUpdate + timedelta(hours=12) < timenow)[:100]
+            ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
+            async_pricedata = map(nodetasks.get_game_global_price.delay, ids)
+            gevent.joinall([gevent.spawn(wait_asyncresult, apd) for apd in async_pricedata])
+            for apd in async_pricedata:
+                if apd.successful():
+                    map(lambda pd: baseprice_parse(pd), apd.result)
+                apd.forget()
+
+        gevent.sleep(15)
+
+
+@db_session
+def refresh_gamediscount():
+    while 1:
+        timenow = datetime.utcnow().replace(tzinfo=None)
+        if select(game for game in GameDetail
+                if game.lastDiscountUpdate == None
+                or game.lastDiscountUpdate + timedelta(hours=2) < timenow).exists():
+            ids = select(game.id for game in GameDetail
+                    if game.lastDiscountUpdate == None
+                    or game.lastDiscountUpdate + timedelta(hours=2) < timenow)[:100]
+            ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
+            async_discountdata = map(nodetasks.get_game_discount.delay, ids)
+            gevent.joinall([gevent.spawn(wait_asyncresult, adis) for adis in async_discountdata])
+            for adis in async_discountdata:
+                if adis.successful():
+                    map(lambda dis: discount_parse(dis), adis.result)
+                adis.forget()
+
+        gevent.sleep(5)
+
+
 if __name__ == '__main__':
     dblite.bind('sqlite', 'dblite.db', create_db=True)
     dblite.generate_mapping(create_tables=True)
@@ -54,4 +100,6 @@ if __name__ == '__main__':
     db.generate_mapping(create_tables=True)
     gevent.joinall([
         gevent.spawn(refresh_gamedetail),
-        gevent.spawn(refresh_gamelist)])
+        gevent.spawn(refresh_gamelist),
+        gevent.spawn(refresh_gameprice),
+        gevent.spawn(refresh_gamediscount])
