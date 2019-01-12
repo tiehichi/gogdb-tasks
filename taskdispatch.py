@@ -34,7 +34,8 @@ def refresh_gamedetail():
 
         elif select(game for game in GameDetail
                 if datetime.utcnow().replace(tzinfo=None) >= game.lastUpdate + timedelta(hours=6)).exists():
-            ids = select(game.id for game in GameDetail if datetime.utcnow().replace(tzinfo=None) >= game.lastUpdate + timedelta(hours=6))[:100]
+            games = GameDetail.select(lambda game: datetime.utcnow().replace(tzinfo=None) >= game.lastUpdate + timedelta(hours=6)).order_by(GameDetail.lastUpdate)[:100]
+            ids = map(lambda g: g.id, games)
             need_lite = False
         else:
             gevent.sleep(10)
@@ -58,9 +59,9 @@ def refresh_gameprice():
         if select(game for game in GameDetail
                 if game.lastPriceUpdate == None
                 or game.lastPriceUpdate + timedelta(hours=12) < timenow).exists():
-            ids = select(game.id for game in GameDetail
-                    if game.lastPriceUpdate == None
-                    or game.lastPriceUpdate + timedelta(hours=12) < timenow)[:100]
+            games = GameDetail.select(lambda game: game.lastPriceUpdate == None
+                    or game.lastPriceUpdate + timedelta(hours=12) < timenow).order_by(GameDetail.lastPriceUpdate)[:100]
+            ids = map(lambda g: g.id, games)
             ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
             async_pricedata = map(nodetasks.get_game_global_price.delay, ids)
             gevent.joinall([gevent.spawn(wait_asyncresult, apd) for apd in async_pricedata])
@@ -79,9 +80,9 @@ def refresh_gamediscount():
         if select(game for game in GameDetail
                 if game.lastDiscountUpdate == None
                 or game.lastDiscountUpdate + timedelta(hours=2) < timenow).exists():
-            ids = select(game.id for game in GameDetail
-                    if game.lastDiscountUpdate == None
-                    or game.lastDiscountUpdate + timedelta(hours=2) < timenow)[:100]
+            games = GameDetail.select(lambda game: game.lastDiscountUpdate == None
+                    or game.lastDiscountUpdate + timedelta(hours=2) < timenow).order_by(GameDetail.lastDiscountUpdate)[:100]
+            ids = map(lambda g: g.id, games)
             ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
             async_discountdata = map(nodetasks.get_game_discount.delay, ids)
             gevent.joinall([gevent.spawn(wait_asyncresult, adis) for adis in async_discountdata])
