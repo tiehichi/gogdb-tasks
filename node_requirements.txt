@@ -1,0 +1,5 @@
+requests
+grequests
+python-dateutil
+fake-useragent
+celery[librabbitmq,redis,msgpack]

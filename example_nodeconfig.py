@@ -1,5 +1,5 @@
-broker_url = 'amqp://gogdb:gogdb@192.168.3.169/gogdb_vhost'
-result_backend = 'redis://192.168.3.169'
+broker_url = 'amqp://{user}:{passwd}@{ip}:{port}/gogdb_vhost'
+result_backend = 'redis://:{password}@{ip}:{port}'
 task_serializer = 'msgpack'
 result_serializer = 'json'
 result_expires = 60 * 60
