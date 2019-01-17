@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import gevent, nodetasks
+import gevent, nodetasks, logging
 from gogdbcore.dbmodel import *
 from gogdbcore.dataparse import *
 from datetime import datetime, timedelta
 
+dlogger = logging.getLogger('GOGDB.DISPATCHER')
 
 def wait_asyncresult(result):
+    dlogger.info('Waitting for task [ %s ]' % (result.id))
     while not result.ready():
         gevent.sleep(0.5)
 
@@ -16,6 +18,7 @@ def wait_asyncresult(result):
 def refresh_gamelist_core():
     isSuccessful = False
     asyncgamelist = nodetasks.get_all_game_id.delay()
+    dlogger.info('Send Task [ get_all_game_id ] [ %s ]' % (asyncgamelist.id))
     wait_asyncresult(asyncgamelist)
     if asyncgamelist.successful():
         gamelist_parse(asyncgamelist.result)
