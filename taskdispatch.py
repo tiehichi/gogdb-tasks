@@ -8,10 +8,12 @@ from datetime import datetime, timedelta
 
 dlogger = logging.getLogger('GOGDB.DISPATCHER')
 
-def wait_asyncresult(result):
+def wait_asyncresult(result, timeout):
     dlogger.info('Waitting for task [ %s ]' % (result.id))
-    while not result.ready():
-        gevent.sleep(0.5)
+    times = 0
+    while not result.ready() and times < timeout:
+        gevent.sleep(1)
+        times += 1
 
 
 @db_session
@@ -19,12 +21,17 @@ def refresh_gamelist_core():
     isSuccessful = False
     asyncgamelist = nodetasks.get_all_game_id.delay()
     dlogger.info('Send Task [ get_all_game_id ] [ %s ]' % (asyncgamelist.id))
-    wait_asyncresult(asyncgamelist)
+    wait_asyncresult(asyncgamelist, 60)
+    if not asyncgamelist.ready():
+        dlogger.warning('Task [ %s ] Timeout' % (asyncgamelist.id))
+        asyncgamelist.forget()
+        return isSuccessful
     if asyncgamelist.successful():
         gamelist_parse(asyncgamelist.result)
         asyncgamelist.forget()
         isSuccessful = True
     else:
+        dlogger.warning('Task [ %s ] Failed' % (asyncgamelist.id))
         asyncgamelist.forget()
     return isSuccessful
 
@@ -56,7 +63,7 @@ def refresh_gamedetail_core():
 
     ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
     async_gamesdata = map(nodetasks.get_game_data.delay, ids)
-    gevent.joinall([gevent.spawn(wait_asyncresult, agd) for agd in async_gamesdata])
+    gevent.joinall([gevent.spawn(wait_asyncresult, agd, 30) for agd in async_gamesdata])
     for agd in async_gamesdata:
         if agd.successful():
             map(lambda gd: gamedetail_parse(gd, lite_mode=need_lite), agd.result)
@@ -84,7 +91,7 @@ def refresh_gameprice_core():
         ids = map(lambda g: g.id, games)
         ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
         async_pricedata = map(nodetasks.get_game_global_price.delay, ids)
-        gevent.joinall([gevent.spawn(wait_asyncresult, apd) for apd in async_pricedata])
+        gevent.joinall([gevent.spawn(wait_asyncresult, apd, 45) for apd in async_pricedata])
         for apd in async_pricedata:
             if apd.successful():
                 map(lambda pd: baseprice_parse(pd), apd.result)
@@ -108,7 +115,7 @@ def refresh_gamediscount_core():
         ids = map(lambda g: g.id, games)
         ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
         async_discountdata = map(nodetasks.get_game_discount.delay, ids)
-        gevent.joinall([gevent.spawn(wait_asyncresult, adis) for adis in async_discountdata])
+        gevent.joinall([gevent.spawn(wait_asyncresult, adis, 30) for adis in async_discountdata])
         for adis in async_discountdata:
             if adis.successful():
                 map(lambda dis: discount_parse(dis), adis.result)
@@ -126,8 +133,15 @@ if __name__ == '__main__':
     dblite.generate_mapping(create_tables=True)
     db.bind('postgres', host='127.0.0.1', user='gogdb', password='gogdb', database='gogdb')
     db.generate_mapping(create_tables=True)
+
+    dlogger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    dlogger.addHandler(stream_handler)
+
     gevent.joinall([
-        gevent.spawn(refresh_gamedetail),
         gevent.spawn(refresh_gamelist),
+        gevent.spawn(refresh_gamedetail),
         gevent.spawn(refresh_gameprice),
         gevent.spawn(refresh_gamediscount)])
