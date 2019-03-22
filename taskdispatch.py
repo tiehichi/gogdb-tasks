@@ -44,6 +44,13 @@ def refresh_gamelist():
             gevent.sleep(2)
 
 
+def safe_gamedetail_parse(game_data, lite_mode):
+    if '_embedded' in game_data:
+        gamedetail_parse(game_data, lite_mode)
+    else:
+        dlogger.warning('Special Game Data [ %s ]' % (str(game_data)))
+
+
 @db_session
 def refresh_gamedetail_core():
     isIdle = False
@@ -66,7 +73,7 @@ def refresh_gamedetail_core():
     gevent.joinall([gevent.spawn(wait_asyncresult, agd, 30) for agd in async_gamesdata])
     for agd in async_gamesdata:
         if agd.successful():
-            map(lambda gd: gamedetail_parse(gd, lite_mode=need_lite), agd.result)
+            map(lambda gd: safe_gamedetail_parse(gd, lite_mode=need_lite), agd.result)
         agd.forget()
 
     return isIdle
