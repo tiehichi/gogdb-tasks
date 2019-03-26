@@ -52,18 +52,41 @@ def safe_gamedetail_parse(game_data, lite_mode):
 
 
 @db_session
+def init_gamedetail_core():
+    isIdle = False
+    if select(gid for gid in GameList if gid.hasWriteInDB == False).exists():
+        ids = select(gid.id for gid in GameList if gid.hasWriteInDB == False)[:100]
+    else:
+        isIdle = True
+        return isIdle
+    
+    ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
+    async_gamesdata = map(nodetasks.get_game_data.delay, ids)
+    gevent.joinall([gevent.spawn(wait_asyncresult, agd, 30) for agd in async_gamesdata])
+    for agd in async_gamesdata:
+        if agd.successful():
+            map(lambda gd: safe_gamedetail_parse(gd, lite_mode=True), agd.result)
+        agd.forget()
+
+    return isIdle
+
+
+def init_gamedetail():
+    while 1:
+        if init_gamedetail_core():
+            gevent.sleep(60)
+        else:
+            gevent.sleep(10)
+
+
+@db_session
 def refresh_gamedetail_core():
     isIdle = False
 
-    if select(gid for gid in GameList if gid.hasWriteInDB == False).exists():
-        ids = select(gid.id for gid in GameList if gid.hasWriteInDB == False)[:100]
-        need_lite = True
-
-    elif select(game for game in GameDetail
+    if select(game for game in GameDetail
             if datetime.utcnow().replace(tzinfo=None) >= game.lastUpdate + timedelta(hours=6)).exists():
         games = GameDetail.select(lambda game: datetime.utcnow().replace(tzinfo=None) >= game.lastUpdate + timedelta(hours=6)).order_by(GameDetail.lastUpdate)[:100]
         ids = map(lambda g: g.id, games)
-        need_lite = False
     else:
         isIdle = True
         return isIdle
@@ -73,7 +96,7 @@ def refresh_gamedetail_core():
     gevent.joinall([gevent.spawn(wait_asyncresult, agd, 30) for agd in async_gamesdata])
     for agd in async_gamesdata:
         if agd.successful():
-            map(lambda gd: safe_gamedetail_parse(gd, lite_mode=need_lite), agd.result)
+            map(lambda gd: safe_gamedetail_parse(gd, lite_mode=False), agd.result)
         agd.forget()
 
     return isIdle
@@ -82,9 +105,9 @@ def refresh_gamedetail_core():
 def refresh_gamedetail():
     while 1:
         if refresh_gamedetail_core():
-            gevent.sleep(10)
+            gevent.sleep(60)
         else:
-            gevent.sleep(2)
+            gevent.sleep(10)
 
 
 @db_session
@@ -149,6 +172,7 @@ if __name__ == '__main__':
 
     gevent.joinall([
         gevent.spawn(refresh_gamelist),
+        gevent.spawn(init_gamedetail),
         gevent.spawn(refresh_gamedetail),
         gevent.spawn(refresh_gameprice),
         gevent.spawn(refresh_gamediscount)])
