@@ -39,7 +39,7 @@ def refresh_gamelist_core():
 def refresh_gamelist():
     while 1:
         if refresh_gamelist_core():
-            gevent.sleep(60 * 60 * 6)
+            gevent.sleep(60 * 60 * 2)
         else:
             gevent.sleep(2)
 
@@ -59,7 +59,7 @@ def init_gamedetail_core():
     else:
         isIdle = True
         return isIdle
-    
+
     ids = [ ids[i:i+10] for i in range(0, len(ids), 10) ]
     async_gamesdata = map(nodetasks.get_game_data.delay, ids)
     gevent.joinall([gevent.spawn(wait_asyncresult, agd, 30) for agd in async_gamesdata])
@@ -112,6 +112,8 @@ def refresh_gamedetail():
 
 @db_session
 def refresh_gameprice_core():
+    isIdle = False
+
     timenow = datetime.utcnow().replace(tzinfo=None)
     if select(game for game in GameDetail
             if game.lastPriceUpdate == None
@@ -126,16 +128,24 @@ def refresh_gameprice_core():
             if apd.successful():
                 map(lambda pd: baseprice_parse(pd), apd.result)
             apd.forget()
+    else:
+        isIdle = True
+
+    return isIdle
 
 
 def refresh_gameprice():
     while 1:
-        refresh_gameprice_core()
-        gevent.sleep(15)
+        if refresh_gameprice_core():
+            gevent.sleep(60 * 5)
+        else:
+            gevent.sleep(10)
 
 
 @db_session
 def refresh_gamediscount_core():
+    isIdle = False
+
     timenow = datetime.utcnow().replace(tzinfo=None)
     if select(game for game in GameDetail
             if game.lastDiscountUpdate == None
@@ -150,12 +160,18 @@ def refresh_gamediscount_core():
             if adis.successful():
                 map(lambda dis: discount_parse(dis), adis.result)
             adis.forget()
+    else:
+        isIdle = True
+
+    return isIdle
 
 
 def refresh_gamediscount():
     while 1:
-        refresh_gamediscount_core()
-        gevent.sleep(5)
+        if refresh_gamediscount_core():
+            gevent.sleep(60)
+        else:
+            gevent.sleep(10)
 
 
 if __name__ == '__main__':
