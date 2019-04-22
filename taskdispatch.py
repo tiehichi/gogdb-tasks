@@ -53,7 +53,7 @@ def safe_gamedetail_parse(game_data, lite_mode):
         dlogger.warning('Special Game Data [ %s ]' % (str(game_data)))
         message = game_data['message']
         prodid = max(re.findall('\d+', message), key=len)
-        remove(gid for gid in GameList if gid.id == prodid)
+        get(gid for gid in GameList if gid.id == prodid).delete()
         dlogger.warning('Remove Product [ %s ]' % prodid)
 
 
