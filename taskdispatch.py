@@ -5,6 +5,7 @@ import gevent, nodetasks, logging
 from gogdbcore.dbmodel import *
 from gogdbcore.dataparse import *
 from datetime import datetime, timedelta
+import re
 
 dlogger = logging.getLogger('GOGDB.DISPATCHER')
 
@@ -44,11 +45,16 @@ def refresh_gamelist():
             gevent.sleep(2)
 
 
+@db_session
 def safe_gamedetail_parse(game_data, lite_mode):
     if '_embedded' in game_data:
         gamedetail_parse(game_data, lite_mode)
     else:
         dlogger.warning('Special Game Data [ %s ]' % (str(game_data)))
+        message = game_data['message']
+        prodid = max(re.findall('\d+', message), key=len)
+        remove(gid for gid in GameList if gid.id == prodid)
+        dlogger.warning('Remove Product [ %s ]' % prodid)
 
 
 @db_session
