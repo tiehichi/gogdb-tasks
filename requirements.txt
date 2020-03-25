@@ -1,7 +1,1 @@
-requests
-grequests
-pony
-python-dateutil
-psycopg2-binary
-fake-useragent
-celery[librabbitmq,redis,msgpack]==4.1.1
+-r gogdbcore/requirements.txt
